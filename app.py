@@ -5,10 +5,12 @@ from __future__ import annotations
 import streamlit as st
 
 from pdf_processor import chunk_pages, extract_pages
-from search_engine import build_index, search_chunks
+from search_engine import build_index, generate_search_results_csv, search_chunks
 
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 TOP_K = 5
+
+CSV_FILENAME = "findmynotes_results.csv"
 
 
 @st.cache_resource(show_spinner="Loading embedding model ...")
@@ -141,6 +143,9 @@ def main() -> None:
             )
         elif not query or not query.strip():
             st.error("Please enter a non-empty search query.")
+            # Clear any stale results so a failed search cannot export them.
+            st.session_state.pop("search_results", None)
+            st.session_state.pop("search_query", None)
         else:
             try:
                 results = search_chunks(
@@ -152,7 +157,15 @@ def main() -> None:
                 )
                 if not results:
                     st.info("No results found.")
+                    # Clear any stale results so an empty search cannot export them.
+                    st.session_state.pop("search_results", None)
+                    st.session_state.pop("search_query", None)
                 else:
+                    # Store the successful search for the CSV download button,
+                    # which persists across Streamlit reruns.
+                    st.session_state["search_results"] = results
+                    st.session_state["search_query"] = query.strip()
+
                     st.write(f"Top {len(results)} results:")
                     for rank, result in enumerate(results, start=1):
                         st.write(
@@ -161,6 +174,16 @@ def main() -> None:
                         )
                         # Passage text as plain text, not Markdown/HTML.
                         st.text(result["text"])
+
+                    # Download button only shown after a successful search with results.
+                    csv_data = generate_search_results_csv(results, query.strip())
+                    st.download_button(
+                        label="Download results as CSV",
+                        data=csv_data,
+                        file_name=CSV_FILENAME,
+                        mime="text/csv",
+                        key="download_csv",
+                    )
             except ValueError as exc:
                 st.error(str(exc))
 

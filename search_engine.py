@@ -142,6 +142,40 @@ def search_chunks(
     return results
 
 
+def generate_search_results_csv(results: list[dict], query: str) -> bytes:
+    """Build a UTF-8 CSV document from search results.
+
+    Columns: Rank, Query, Filename, Page, Similarity, Passage. The passage
+    text is preserved verbatim (including commas, quotes, and newlines) using
+    Python's standard ``csv`` module for correct escaping.
+
+    Args:
+        results: Result dictionaries as returned by ``search_chunks()``.
+        query: The search query that produced the results.
+
+    Returns:
+        The CSV document encoded as UTF-8 bytes.
+    """
+    import csv
+    import io
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Rank", "Query", "Filename", "Page", "Similarity", "Passage"])
+    for rank, result in enumerate(results, start=1):
+        writer.writerow(
+            [
+                rank,
+                query,
+                result["filename"],
+                result["page"],
+                f"{result['similarity']:.4f}",
+                result["text"],
+            ]
+        )
+    return buffer.getvalue().encode("utf-8")
+
+
 def _cosine_similarity(query_embedding: np.ndarray, embeddings: np.ndarray) -> np.ndarray:
     """Calculate cosine similarity between a query vector and a set of vectors.
 

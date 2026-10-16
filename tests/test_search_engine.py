@@ -1,9 +1,10 @@
 """Automated tests for the semantic search engine."""
 
+import io
 import numpy as np
 import pytest
 
-from search_engine import build_index, search_chunks
+from search_engine import build_index, generate_search_results_csv, search_chunks
 
 
 class FakeModel:
@@ -398,3 +399,70 @@ def test_model_encode_receives_convert_to_numpy_true():
     search_chunks("query", index, model, top_k=5)
 
     assert all(convert_to_numpy for _, convert_to_numpy in model.calls)
+
+
+def make_results():
+    return [
+        {
+            "filename": "alpha.pdf",
+            "page": 1,
+            "text": "alpha text",
+            "similarity": 1.0,
+        },
+        {
+            "filename": "beta.pdf",
+            "page": 2,
+            "text": "beta text",
+            "similarity": 0.0,
+        },
+    ]
+
+
+def test_generate_search_results_csv_header_and_rows():
+    results = make_results()
+    csv_bytes = generate_search_results_csv(results, "query text")
+
+    text = csv_bytes.decode("utf-8")
+    lines = text.splitlines()
+
+    assert lines[0] == "Rank,Query,Filename,Page,Similarity,Passage"
+    assert lines[1] == '1,query text,alpha.pdf,1,1.0000,alpha text'
+    assert lines[2] == '2,query text,beta.pdf,2,0.0000,beta text'
+
+
+def test_generate_search_results_csv_escapes_commas_quotes_and_newlines():
+    results = [
+        {
+            "filename": "notes, page 1.pdf",
+            "page": 1,
+            'text': 'She said, "hello" and then a newline here.',
+            "similarity": 0.95,
+        }
+    ]
+    csv_bytes = generate_search_results_csv(results, 'query, with "quotes"')
+    text = csv_bytes.decode("utf-8")
+
+    # Commas and quotes are quoted; internal quotes doubled; newlines preserved inside quotes.
+    assert '"notes, page 1.pdf"' in text
+    assert 'She said, ""hello"" and then a newline here.' in text
+    assert '"query, with ""quotes"""' in text
+
+
+def test_generate_search_results_csv_uses_utf8_encoding():
+    results = [
+        {"filename": "café.pdf", "page": 1, "text": "naïve résumé", "similarity": 0.5}
+    ]
+    csv_bytes = generate_search_results_csv(results, "query")
+
+    # Decoding as UTF-8 should succeed; verify non-ASCII content survives.
+    text = csv_bytes.decode("utf-8")
+    assert "café.pdf" in text
+    assert "naïve résumé" in text
+    assert "0.5000" in text
+
+
+def test_generate_search_results_csv_empty_results():
+    csv_bytes = generate_search_results_csv([], "query text")
+    text = csv_bytes.decode("utf-8")
+
+    assert text == "Rank,Query,Filename,Page,Similarity,Passage\r\n"
