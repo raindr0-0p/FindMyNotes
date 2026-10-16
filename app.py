@@ -123,6 +123,17 @@ def main() -> None:
     )
     source_filename = None if source_choice == "All PDFs" else source_choice
 
+    # Let the user choose how many results to return (default 5, matching the
+    # previous fixed behavior).
+    result_count = st.number_input(
+        "Number of results",
+        min_value=1,
+        max_value=100,
+        value=5,
+        step=1,
+        key="result_count",
+    )
+
     if st.button("Search"):
         if index is None:
             st.error(
@@ -133,7 +144,11 @@ def main() -> None:
         else:
             try:
                 results = search_chunks(
-                    query.strip(), index, model, top_k=TOP_K, source_filename=source_filename
+                    query.strip(),
+                    index,
+                    model,
+                    top_k=result_count,
+                    source_filename=source_filename,
                 )
                 if not results:
                     st.info("No results found.")
