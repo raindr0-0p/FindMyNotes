@@ -112,7 +112,16 @@ def main() -> None:
     # ---------------- Search ----------------
     st.subheader("Search")
     index = st.session_state.get("index")
+    indexed_files = st.session_state.get("indexed_files") or []
     query = st.text_input("Search query", placeholder="Enter your search query...")
+
+    # Filter results by source PDF. "All PDFs" (default) preserves the existing
+    # top-5 behavior across every indexed document.
+    source_options = ["All PDFs"] + indexed_files
+    source_choice = st.selectbox(
+        "Filter by source PDF", source_options, index=0, key="source_filter"
+    )
+    source_filename = None if source_choice == "All PDFs" else source_choice
 
     if st.button("Search"):
         if index is None:
@@ -123,7 +132,9 @@ def main() -> None:
             st.error("Please enter a non-empty search query.")
         else:
             try:
-                results = search_chunks(query.strip(), index, model, top_k=TOP_K)
+                results = search_chunks(
+                    query.strip(), index, model, top_k=TOP_K, source_filename=source_filename
+                )
                 if not results:
                     st.info("No results found.")
                 else:

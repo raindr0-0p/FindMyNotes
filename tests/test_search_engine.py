@@ -238,6 +238,113 @@ def test_search_preserves_filename_and_page_metadata():
     assert "similarity" in results[0]
 
 
+def test_search_filters_by_source_filename():
+    model = FakeModel(
+        {
+            "alpha text": [1.0, 0.0],
+            "beta text": [0.0, 1.0],
+            "query text": [1.0, 0.0],
+        }
+    )
+    chunks = [
+        {"filename": "alpha.pdf", "page": 1, "text": "alpha text"},
+        {"filename": "beta.pdf", "page": 2, "text": "beta text"},
+    ]
+    index = build_index(chunks, model)
+
+    # Query aligns with alpha (1.0), not beta (0.0); filtering to beta still
+    # returns beta but with its true, unchanged similarity.
+    results = search_chunks("query text", index, model, top_k=5, source_filename="beta.pdf")
+
+    assert len(results) == 1
+    assert results[0]["filename"] == "beta.pdf"
+    assert results[0]["page"] == 2
+    assert results[0]["text"] == "beta text"
+    assert results[0]["similarity"] == pytest.approx(0.0)
+
+
+def test_search_all_pdfs_option_defaults_to_all_documents():
+    model = FakeModel(
+        {
+            "alpha text": [1.0, 0.0],
+            "beta text": [0.0, 1.0],
+            "query text": [1.0, 0.0],
+        }
+    )
+    chunks = [
+        {"filename": "alpha.pdf", "page": 1, "text": "alpha text"},
+        {"filename": "beta.pdf", "page": 2, "text": "beta text"},
+    ]
+    index = build_index(chunks, model)
+
+    results_none = search_chunks("query text", index, model, top_k=5)
+    results_all_pdfs = search_chunks("query text", index, model, top_k=5)
+
+    assert len(results_none) == 2
+    assert len(results_all_pdfs) == 2
+    assert results_none == results_all_pdfs
+
+
+def test_search_source_filename_with_no_match_returns_empty():
+    model = FakeModel(
+        {"alpha text": [1.0, 0.0], "query text": [1.0, 0.0]}
+    )
+    chunks = [{"filename": "alpha.pdf", "page": 1, "text": "alpha text"}]
+    index = build_index(chunks, model)
+
+    results = search_chunks("query text", index, model, top_k=5, source_filename="nonexistent.pdf")
+
+    assert results == []
+
+
+def test_search_source_filename_is_case_sensitive():
+    model = FakeModel(
+        {"alpha text": [1.0, 0.0], "query text": [1.0, 0.0]}
+    )
+    chunks = [{"filename": "Alpha.pdf", "page": 1, "text": "alpha text"}]
+    index = build_index(chunks, model)
+
+    results = search_chunks("query text", index, model, top_k=5, source_filename="alpha.pdf")
+
+    assert results == []
+
+
+def test_search_source_filename_uses_stored_filename_not_reranking():
+    model = FakeModel(
+        {
+            "alpha text": [1.0, 0.0],
+            "beta text": [0.0, 1.0],
+            "query text": [1.0, 0.0],
+        }
+    )
+    chunks = [
+        {"filename": "alpha.pdf", "page": 1, "text": "alpha text"},
+        {"filename": "beta.pdf", "page": 2, "text": "beta text"},
+    ]
+    index = build_index(chunks, model)
+
+    results = search_chunks("query text", index, model, top_k=5, source_filename="alpha.pdf")
+
+    # Only the alpha chunk is considered, and its similarity is unchanged.
+    assert len(results) == 1
+    assert results[0]["filename"] == "alpha.pdf"
+    assert results[0]["page"] == 1
+    assert results[0]["text"] == "alpha text"
+    assert results[0]["similarity"] == pytest.approx(1.0)
+
+
+def test_search_rejects_invalid_source_filename():
+    model = FakeModel()
+    index = build_index(make_chunks(), model)
+    for bad_source in ["", "   ", 123, True]:
+        with pytest.raises(ValueError, match="source_filename"):
+            search_chunks("query", index, model, top_k=5, source_filename=bad_source)
+
+    # None means "all PDFs" and remains valid (default behavior).
+    results = search_chunks("query", index, model, top_k=5, source_filename=None)
+    assert len(results) == 3
+
+
 def test_search_handles_zero_norm_query_vector():
     # zero-norm query vector must not raise; similarity treated as 0.0
     model = FakeModel(

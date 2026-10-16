@@ -65,6 +65,7 @@ def search_chunks(
     index: dict[str, Any],
     model: Any,
     top_k: int = 5,
+    source_filename: str | None = None,
 ) -> list[dict[str, Any]]:
     """Search an index for chunks most similar to the query.
 
@@ -73,6 +74,11 @@ def search_chunks(
         index: An index produced by ``build_index()``.
         model: An already-loaded embedding model with an ``encode`` method.
         top_k: Maximum number of results to return (default 5).
+        source_filename: If provided, restrict results to chunks whose stored
+            ``filename`` matches this value exactly. The filter uses the actual
+            source filename associated with each chunk and is applied before
+            ranking, without re-running the embedding model or altering any
+            similarity score. Use ``None`` (the default) to search all PDFs.
 
     Returns:
         A list of result dictionaries, each preserving ``filename``, ``page``,
@@ -80,8 +86,8 @@ def search_chunks(
         score. Results are ranked by descending similarity.
 
     Raises:
-        ValueError: If the query is empty/whitespace-only, or if ``top_k`` is
-        not a positive integer.
+        ValueError: If the query is empty/whitespace-only, if ``top_k`` is not
+        a positive integer, or if ``source_filename`` is not a non-empty string.
     """
     if not isinstance(query, str) or not query.strip():
         raise ValueError("Query must be a non-empty string.")
@@ -89,11 +95,28 @@ def search_chunks(
     if isinstance(top_k, bool) or not isinstance(top_k, int) or top_k <= 0:
         raise ValueError("top_k must be a positive integer.")
 
+    if source_filename is not None and (
+        not isinstance(source_filename, str) or not source_filename.strip()
+    ):
+        raise ValueError("source_filename must be a non-empty string.")
+
     chunks = index.get("chunks", [])
     embeddings = index.get("embeddings", np.empty((0, 0), dtype=np.float32))
 
     if not chunks or embeddings.shape[0] == 0:
         return []
+
+    if source_filename is not None:
+        # Restrict candidates to the selected source PDF using the filename
+        # stored with each indexed chunk. Embeddings already exist, so this
+        # neither re-runs the model nor changes any similarity score.
+        matching_indices = [
+            i for i, chunk in enumerate(chunks) if chunk.get("filename") == source_filename
+        ]
+        if not matching_indices:
+            return []
+        chunks = [chunks[i] for i in matching_indices]
+        embeddings = embeddings[np.array(matching_indices, dtype=int)]
 
     query_embedding = model.encode([query], convert_to_numpy=True)
     query_embedding = np.asarray(query_embedding, dtype=np.float32).reshape(1, -1)
