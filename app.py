@@ -20,7 +20,7 @@ def load_embedding_model():
     """
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(MODEL_NAME, local_files_only=True)
+    return SentenceTransformer(MODEL_NAME)
 
 
 def main() -> None:
