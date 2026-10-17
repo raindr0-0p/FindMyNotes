@@ -1,0 +1,17 @@
+# FindMyNotes — Streamlit configuration.
+# The app draws its own light/dark themes (see findmynotes_ui.py). The native
+# theme below pins Streamlit's built-in widgets to the light palette so that
+# anything the stylesheet doesn't touch still looks coherent, and it keeps
+# Streamlit's own theme from changing with the operating-system setting.
+
+[client]
+# Hide Deploy and the app menu; nothing here belongs to the product.
+toolbarMode = "minimal"
+
+[theme]
+base = "light"
+primaryColor = "#27479E"
+backgroundColor = "#F3F5F7"
+secondaryBackgroundColor = "#ECEFF3"
+textColor = "#151C24"
+font = "sans-serif"
