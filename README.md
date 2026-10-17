@@ -1,196 +1,191 @@
 # FindMyNotes
 
-**Try it live: [findmynotes.streamlit.app](https://findmynotes.streamlit.app/)**
+**Find anything in your PDFs by meaning, not just keywords.**
 
-FindMyNotes is a semantic search application for PDF documents. Upload one or more PDFs, search by meaning, and find the five most relevant passages with their source filenames, page numbers, and similarity scores.
+FindMyNotes is a semantic document search tool that helps you rediscover information buried in lecture notes, technical documentation, research papers, and other PDFs. Search naturally, find relevant passages across multiple documents, and jump straight to the page containing the information.
 
-Built with Python, PyMuPDF, Sentence Transformers, NumPy, and Streamlit.
+**[Live Demo](https://findmynotes.streamlit.app/) · [Source Code](https://github.com/raindr0-0p/FindMyNotes)**
 
-![FindMyNotes interface](docs/screenshot.png)
+---
 
-## The problem it solves
+## See it in action
 
-When you have multiple PDFs, you might remember an idea without remembering the exact wording or which document contains it. Traditional keyword search can miss relevant passages when your query uses different words from the original text.
+![FindMyNotes — Light theme](docs/preview-light.png)
 
-FindMyNotes uses semantic embeddings to rank passages by similarity to your query. For example, you can ask, *“Why does a Transformer need positional encoding to represent token order?”* and retrieve related passages from your notes even when the wording differs.
+<details>
+<summary>View dark theme</summary>
+
+![FindMyNotes — Dark theme](docs/preview-dark.png)
+
+</details>
+
+## Why FindMyNotes?
+
+Traditional document search works best when you remember the exact words used in a document. But often, you remember the concept rather than the wording.
+
+FindMyNotes uses semantic similarity to retrieve passages that are conceptually related to your query, even when the wording differs.
+
+Search for an idea. Discover the passages that discuss it. Find the original source.
 
 ## Features
 
-- Upload and search across multiple PDF documents.
-- Extract text page by page while preserving 1-based page numbers.
-- Split page text into overlapping word chunks without merging content across pages.
-- Generate text embeddings with `sentence-transformers/all-MiniLM-L6-v2`.
-- Rank passages using cosine similarity calculated with NumPy.
-- Display the top five results with passage text, source filename, page number, and similarity score.
-- Handle invalid PDFs, PDFs without extractable text, empty queries, and searches before indexing with clear messages.
-- Cache the embedding model and retain the search index in the active Streamlit session.
-
-## Live demo
-
-**[Open FindMyNotes](https://findmynotes.streamlit.app/)**
-
-The public demo is hosted on Streamlit Community Cloud. Initial startup can take longer if the application needs to download the pretrained embedding model.
-
-**Privacy note:** In the hosted demo, uploaded PDFs are processed by the cloud-hosted application. Do not upload confidential or sensitive documents. When running the application locally, processing takes place on your own computer after the model has been downloaded.
-
-## Technology stack
-
-| Technology | Purpose |
-|---|---|
-| Python | Application logic |
-| PyMuPDF (`pymupdf`) | Page-by-page PDF text extraction |
-| Sentence Transformers | Convert document passages and queries into embeddings |
-| `all-MiniLM-L6-v2` | Pretrained text embedding model |
-| NumPy | Cosine similarity calculations and ranking |
-| Streamlit | Web user interface |
-| pytest | Automated tests |
+- **Semantic search** — Find conceptually relevant passages using natural-language queries.
+- **Multi-PDF indexing** — Search across multiple PDF documents in one workspace.
+- **Source-aware results** — Every result includes its source filename and page number.
+- **Relevance ranking** — Results are ranked by cosine similarity between query and passage embeddings.
+- **Flexible result count** — Choose how many results to retrieve, from 1 to 100.
+- **Source filtering** — Narrow results to a specific PDF without rebuilding the index.
+- **CSV export** — Download search results for reference, analysis, or record keeping.
+- **Recent search history** — Revisit previous queries and rerun searches.
+- **Light and dark themes** — Choose the appearance that suits your workspace.
+- **Privacy-conscious local use** — Run the application on your own machine, with document processing and search performed locally after the required model is available.
 
 ## How it works
 
-The application follows this pipeline:
-
-1. **PDF extraction** — `pdf_processor.extract_pages()` extracts text from each page and records its 1-based page number. Pages without extractable text are skipped; scanned/image-only PDFs are not OCR-processed.
-2. **Text chunking** — `pdf_processor.chunk_pages()` splits each page into overlapping word chunks. Chunks never cross page boundaries, and each chunk retains its source filename and page number.
-3. **Embeddings** — `search_engine.build_index()` converts each chunk into a numerical vector using `all-MiniLM-L6-v2` and stores the vectors alongside the corresponding source metadata.
-4. **Semantic retrieval** — `search_engine.search_chunks()` embeds the user's query and compares it with the indexed chunks using cosine similarity.
-5. **Ranked results** — The application returns up to five passages ranked by similarity, along with their filenames, page numbers, and scores.
-
-Similarity scores are **not probabilities** or guarantees of relevance. Always check a result against the original passage.
-
-## Project structure
+FindMyNotes combines pretrained text embeddings with vector similarity search.
 
 ```text
-FindMyNotes/
-├── app.py                    # Streamlit interface and session workflow
-├── pdf_processor.py          # PDF extraction and page-aware chunking
-├── search_engine.py          # Embeddings, cosine similarity, and retrieval
-├── requirements.txt          # Python dependencies
-├── .gitignore                # Git ignore rules
-├── README.md                 # Project documentation
-├── docs/
-│   └── screenshot.png        # Screenshot of the running application
-└── tests/
-    ├── test_pdf_processor.py # PDF extraction and chunking unit tests
-    ├── test_search_engine.py # Semantic search unit tests
-    └── test_real_pipeline.py # Opt-in real-model integration test
+PDF documents
+     |
+     v
+Extract text page by page
+     |
+     v
+Split text into overlapping chunks
+     |
+     v
+Generate passage embeddings
+     |
+     v
+User enters a search query
+     |
+     v
+Embed the query
+     |
+     v
+Calculate cosine similarities
+     |
+     v
+Rank passages and display source pages
 ```
 
-## Setup on Windows
+### Search pipeline
 
-### 1. Get the project
+1. **Text extraction:** PyMuPDF extracts text from PDF pages while preserving page references.
+2. **Chunking:** Extracted text is divided into overlapping chunks so that passages retain useful context.
+3. **Embedding generation:** The `sentence-transformers/all-MiniLM-L6-v2` model converts each chunk into a numerical vector representing its semantic content.
+4. **Similarity search:** The query is embedded using the same model. NumPy calculates cosine similarity between the query vector and indexed passage vectors.
+5. **Retrieval:** The most similar passages are returned with their filenames, page numbers, and similarity scores.
 
-Clone your GitHub repository or download it, then open a terminal in the project directory. For example:
+The document embeddings are computed during indexing and reused for subsequent searches. Filtering by source PDF narrows the candidate passages without re-embedding the documents.
+
+Similarity scores indicate vector similarity; they are not probabilities or guarantees of correctness.
+
+## Technology
+
+| Component | Technology |
+|---|---|
+| Application interface | Streamlit |
+| Language | Python |
+| PDF text extraction | PyMuPDF |
+| Text embeddings | Sentence Transformers |
+| Embedding model | `all-MiniLM-L6-v2` |
+| Vector operations and similarity | NumPy |
+| Automated testing | pytest |
+
+## Run locally
+
+### Prerequisites
+
+- Python installed on your machine
+- Git
+- Internet access for the initial dependency and model downloads, if they are not already available
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/raindr0-0p/FindMyNotes.git
+cd FindMyNotes
+```
+
+### 2. Create a virtual environment
+
+**Windows — Command Prompt**
 
 ```bat
-cd /d D:\findmynotes
+python -m venv .venv
+.venv\Scripts\activate
 ```
 
-### 2. Create and activate a virtual environment
+**macOS / Linux**
 
-**Command Prompt (CMD):**
-
-```bat
-py -m venv .venv
-.venv\Scripts\activate.bat
-```
-
-**PowerShell:**
-
-```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 ### 3. Install dependencies
 
-With the virtual environment activated, run:
-
-```bat
-python -m pip install --upgrade pip
+```bash
 python -m pip install -r requirements.txt
 ```
 
-## The embedding model
+### 4. Launch FindMyNotes
 
-FindMyNotes uses the public pretrained model `sentence-transformers/all-MiniLM-L6-v2`. The first model download requires an internet connection. You can download and cache it before launching the application:
-
-```bat
-python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-```
-
-Once cached, the model can be reused locally. The hosted demo also needs to download the model in its cloud environment when it is not already cached.
-
-## Run the app
-
-With the virtual environment activated, start FindMyNotes:
-
-```bat
-python -m streamlit run app.py --server.fileWatcherType=none
-```
-
-Open the local URL printed by Streamlit, usually `http://localhost:8501`.
-
-The `--server.fileWatcherType=none` option avoids noisy file-watcher import warnings in some Windows environments. You can try the standard command below if the watcher works correctly on your setup:
-
-```bat
+```bash
 python -m streamlit run app.py
 ```
 
-### Use the application
+Streamlit will provide a local URL in the terminal, typically `http://localhost:8501`.
 
-1. Select one or more PDFs in the uploader.
-2. Click **Index documents** and wait for extraction, chunking, and embedding generation to finish.
-3. Enter a natural-language query and click **Search**.
-4. Review the ranked passages and check the source filename and page number in the original PDF.
-5. If you change the selected uploads, index them again before searching so the index reflects the current selection.
+The embedding model may download the first time it is loaded. Subsequent runs can reuse the cached model.
+
+### 5. Start searching
+
+1. Upload one or more text-based PDFs.
+2. Select **Index documents** and wait for indexing to finish.
+3. Enter a natural-language query.
+4. Review the ranked passages and their source pages.
+5. Optionally filter by PDF, change the result count, or export the results as CSV.
 
 ## Run the tests
 
-### Regular unit tests
+With the virtual environment activated:
 
-These tests use deterministic test embeddings and do not need to download the real model:
-
-```bat
-python -m pytest tests/test_search_engine.py tests/test_pdf_processor.py -v
+```bash
+python -m pytest -q
 ```
 
-### Opt-in real-model integration test
+To run the real-model integration test, if included in your checkout:
 
-The integration test exercises the PDF-to-search pipeline with the real embedding model and is skipped by default. Download/cache the model first, then enable the test.
-
-**Command Prompt (CMD):**
+**Windows — Command Prompt**
 
 ```bat
 set RUN_REAL_MODEL_INTEGRATION=1
-python -m pytest tests/test_real_pipeline.py -v
-set RUN_REAL_MODEL_INTEGRATION=
+python -m pytest -q
 ```
 
-**PowerShell:**
+The integration test may take longer because it loads the actual embedding model. Clear the environment variable afterward if you want to return to the default test configuration.
 
-```powershell
-$env:RUN_REAL_MODEL_INTEGRATION = "1"
-python -m pytest tests/test_real_pipeline.py -v
-Remove-Item Env:RUN_REAL_MODEL_INTEGRATION
-```
+## Design principles
 
-To run the entire test suite with the integration test enabled:
+FindMyNotes is built around a few straightforward principles:
 
-```bat
-set RUN_REAL_MODEL_INTEGRATION=1
-python -m pytest -v
-set RUN_REAL_MODEL_INTEGRATION=
-```
+- **Search should be intuitive.** Users should be able to describe what they remember without knowing the exact wording.
+- **Results should be traceable.** Retrieved passages always retain their document and page references.
+- **The search pipeline should be understandable.** Embeddings and cosine similarity provide a clear, inspectable retrieval mechanism.
+- **The interface should stay focused.** Document management, search, results, and history should support the task rather than compete for attention.
 
-## Limitations
+## Scope and limitations
 
-- PDF files are the only supported input format.
-- Scanned or image-only PDFs are not processed with OCR.
-- The app retrieves and ranks passages; it does not generate answers with an LLM or act as a chatbot.
-- The index is held in Streamlit session state and is not persisted in a database. Restarting the app clears it.
-- Semantic similarity is useful for ranking likely matches but does not guarantee that every result is relevant.
-- The hosted demo processes uploaded documents in the cloud. Avoid uploading private or sensitive material to it.
+FindMyNotes is designed for semantic retrieval from text-based PDFs.
 
-## Possible future improvements
+- **Scanned documents:** OCR is not currently included. Image-only pages without extractable text cannot be indexed.
+- **Generated answers:** FindMyNotes retrieves passages; it does not generate answers with an LLM.
+- **Search accuracy:** Results depend on the quality of extracted text, chunking, and embedding similarity. Relevant passages are not guaranteed to appear in the top results.
+- **Persistence:** The index and recent search history are maintained in Streamlit session state. They are not a permanent document database.
+- **Local versus hosted use:** When run locally, the application processes documents on your machine after the required model is available. When using the hosted demo, uploaded files are processed by the hosting environment. Do not upload sensitive documents to the public demo.
 
-These ideas are intentionally outside the current MVP scope: retrieval evaluation on a labeled query set, hybrid keyword-and-semantic search, persistent indexing, support for more document formats, and OCR for scanned documents.
+---
+
+**FindMyNotes — your documents, searchable by meaning.**
